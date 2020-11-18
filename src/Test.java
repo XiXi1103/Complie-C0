@@ -3,9 +3,7 @@ import tokenizer.Token;
 import tokenizer.TokenType;
 import tokenizer.Tokenizer;
 
-import java.sql.SQLOutput;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Scanner;
 
 public class Test {
@@ -27,9 +25,7 @@ public class Test {
             }
         }
         catch (Exception e){
-            for (Token token: list) {
-                System.out.println(token.getTokenType());
-            }
+            e.printStackTrace();
         }
     }
 }
