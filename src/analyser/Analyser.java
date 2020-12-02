@@ -21,9 +21,11 @@ public final class Analyser {
 
     /** 当前偷看的 token */
     Token peekedToken = null;
+    ArrayList<BlockSymbol> symbolTable = new ArrayList<>();
+    int top = 0;
 
-    /** 符号表 */
-    HashMap<String, SymbolEntry> symbolTable = new HashMap<>();
+//    /** 符号表 */
+//    HashMap<String, SymbolEntry> symbolTable = new HashMap<>();
 
     /** 下一个变量的栈偏移 */
     int nextOffset = 0;
@@ -111,81 +113,81 @@ public final class Analyser {
         }
     }
 
-    /**
-     * 获取下一个变量的栈偏移
-     * 
-     * @return
-     */
-    private int getNextVariableOffset() {
-        return this.nextOffset++;
-    }
+//    /**
+//     * 获取下一个变量的栈偏移
+//     *
+//     * @return
+//     */
+//    private int getNextVariableOffset() {
+//        return this.nextOffset++;
+//    }
 
-    /**
-     * 添加一个符号
-     * 
-     * @param name          名字
-     * @param isInitialized 是否已赋值
-     * @param isConstant    是否是常量
-     * @param curPos        当前 token 的位置（报错用）
-     * @throws AnalyzeError 如果重复定义了则抛异常
-     */
-    private void addSymbol(String name, boolean isInitialized, boolean isConstant, Pos curPos) throws AnalyzeError {
-        if (this.symbolTable.get(name) != null) {
-            throw new AnalyzeError(ErrorCode.DuplicateDeclaration, curPos);
-        } else {
-            this.symbolTable.put(name, new SymbolEntry(isConstant, isInitialized, getNextVariableOffset()));
-        }
-    }
+//    /**
+//     * 添加一个符号
+//     *
+//     * @param name          名字
+//     * @param isInitialized 是否已赋值
+//     * @param isConstant    是否是常量
+//     * @param curPos        当前 token 的位置（报错用）
+//     * @throws AnalyzeError 如果重复定义了则抛异常
+//     */
+//    private void addSymbol(String name, boolean isInitialized, boolean isConstant, Pos curPos) throws AnalyzeError {
+//        if (this.symbolTable.get(name) != null) {
+//            throw new AnalyzeError(ErrorCode.DuplicateDeclaration, curPos);
+//        } else {
+//            this.symbolTable.put(name, new SymbolEntry(isConstant, isInitialized, getNextVariableOffset()));
+//        }
+//    }
 
-    /**
-     * 设置符号为已赋值
-     * 
-     * @param name   符号名称
-     * @param curPos 当前位置（报错用）
-     * @throws AnalyzeError 如果未定义则抛异常
-     */
-    private void initializeSymbol(String name, Pos curPos) throws AnalyzeError {
-        var entry = this.symbolTable.get(name);
-        if (entry == null) {
-            throw new AnalyzeError(ErrorCode.NotDeclared, curPos);
-        } else {
-            entry.setInitialized(true);
-        }
-    }
+//    /**
+//     * 设置符号为已赋值
+//     *
+//     * @param name   符号名称
+//     * @param curPos 当前位置（报错用）
+//     * @throws AnalyzeError 如果未定义则抛异常
+//     */
+//    private void initializeSymbol(String name, Pos curPos) throws AnalyzeError {
+//        var entry = this.symbolTable.get(name);
+//        if (entry == null) {
+//            throw new AnalyzeError(ErrorCode.NotDeclared, curPos);
+//        } else {
+//            entry.setInitialized(true);
+//        }
+//    }
 
-    /**
-     * 获取变量在栈上的偏移
-     * 
-     * @param name   符号名
-     * @param curPos 当前位置（报错用）
-     * @return 栈偏移
-     * @throws AnalyzeError
-     */
-    private int getOffset(String name, Pos curPos) throws AnalyzeError {
-        var entry = this.symbolTable.get(name);
-        if (entry == null) {
-            throw new AnalyzeError(ErrorCode.NotDeclared, curPos);
-        } else {
-            return entry.getStackOffset();
-        }
-    }
+//    /**
+//     * 获取变量在栈上的偏移
+//     *
+//     * @param name   符号名
+//     * @param curPos 当前位置（报错用）
+//     * @return 栈偏移
+//     * @throws AnalyzeError
+//     */
+//    private int getOffset(String name, Pos curPos) throws AnalyzeError {
+//        var entry = this.symbolTable.get(name);
+//        if (entry == null) {
+//            throw new AnalyzeError(ErrorCode.NotDeclared, curPos);
+//        } else {
+//            return entry.getStackOffset();
+//        }
+//    }
 
-    /**
-     * 获取变量是否是常量
-     * 
-     * @param name   符号名
-     * @param curPos 当前位置（报错用）
-     * @return 是否为常量
-     * @throws AnalyzeError
-     */
-    private boolean isConstant(String name, Pos curPos) throws AnalyzeError {
-        var entry = this.symbolTable.get(name);
-        if (entry == null) {
-            throw new AnalyzeError(ErrorCode.NotDeclared, curPos);
-        } else {
-            return entry.isConstant();
-        }
-    }
+//    /**
+//     * 获取变量是否是常量
+//     *
+//     * @param name   符号名
+//     * @param curPos 当前位置（报错用）
+//     * @return 是否为常量
+//     * @throws AnalyzeError
+//     */
+//    private boolean isConstant(String name, Pos curPos) throws AnalyzeError {
+//        var entry = this.symbolTable.get(name);
+//        if (entry == null) {
+//            throw new AnalyzeError(ErrorCode.NotDeclared, curPos);
+//        } else {
+//            return entry.isConstant();
+//        }
+//    }
 
     private boolean isFirst_vt_stmt() throws CompileError{
         return check(TokenType.MINUS)||check(TokenType.IDENT)||check(TokenType.UINT_LITERAL)
@@ -194,16 +196,16 @@ public final class Analyser {
                 ||check(TokenType.IF_KW)||check(TokenType.WHILE_KW)||check(TokenType.RETURN_KW)
                 ||check(TokenType.SEMICOLON)||check(TokenType.L_BRACE);
     }
-    private void analyseTy() throws CompileError{
+    private Type analyseTy() throws CompileError{
         Token token = expect(TokenType.IDENT);
         if (token.getValue().equals("void")){
-
+            return Type.VOID;
         }
         else if(token.getValue().equals("int")){
-
+            return Type.INT;
         }
         else if (token.getValue().equals("double")){
-
+            return Type.DOUBLE;
         }
         else throw new Error("expect int, void or double");
     }
@@ -244,43 +246,67 @@ public final class Analyser {
         }
     }
 
-    private void analyseExpr() throws CompileError{
-
+    private int analyseExpr() throws CompileError{
+        return 1;
     }
     private void analyseDecl_stmt() throws CompileError{
         //decl_stmt -> let_decl_stmt | const_decl_stmt
         if (check(TokenType.LET_KW)) analyseLet_decl_stmt();
         else analyseConst_decl_stmt();
     }
-    private void analyseLet_decl_stmt() throws CompileError{
+    private void analyseLet_decl_stmt() throws CompileError{    //初步完成
         //let_decl_stmt -> 'let' IDENT ':' ty ('=' expr)? ';'
         expect(TokenType.LET_KW);
-        expect(TokenType.IDENT);
+        Token token = expect(TokenType.IDENT);
+        String name = (String)token.getValue();
         expect(TokenType.COLON);
-        analyseTy();
+        Type type = analyseTy();
+
         if (check(TokenType.ASSIGN)){
-            analyseExpr();
+            int value = analyseExpr();
+            BlockSymbol blockSymbol = this.symbolTable.get(top);
+            blockSymbol.addSymbol(name,true,false,type,token.getStartPos());
+
+            instructions.add(new Instruction(Operation.arga, blockSymbol.getOffset(name,token.getStartPos())));//获取该变量的栈偏移
+            instructions.add(new Instruction(Operation.push, value));
+            instructions.add(new Instruction(Operation.store_64));
         }
-        expect(TokenType.SEMICOLON);
+        else {
+            this.symbolTable.get(top).addSymbol((String) token.getValue(),false,false,type,token.getStartPos());
+            expect(TokenType.SEMICOLON);
+        }
+
 
     }
 
-    private void analyseConst_decl_stmt() throws CompileError{
+    private void analyseConst_decl_stmt() throws CompileError{  //初步完成
         //const_decl_stmt -> 'const' IDENT ':' ty '=' expr ';'
         expect(TokenType.CONST_KW);
-        expect(TokenType.IDENT);
+        Token token = expect(TokenType.IDENT);
+        String name = (String)token.getValue();
         expect(TokenType.COLON);
-        analyseTy();
+        Type type = analyseTy();
         expect(TokenType.ASSIGN);
-        analyseExpr();
+        int value = analyseExpr();
         expect(TokenType.SEMICOLON);
+
+        BlockSymbol blockSymbol = this.symbolTable.get(top);
+        blockSymbol.addSymbol(name,true,true,type,token.getStartPos());
+
+        instructions.add(new Instruction(Operation.arga, blockSymbol.getOffset(name,token.getStartPos())));//获取该变量的栈偏移
+        instructions.add(new Instruction(Operation.push, value));
+        instructions.add(new Instruction(Operation.store_64));
     }
 
     private void analyseIf_stmt() throws CompileError{
         //if_stmt -> 'if' expr block_stmt ('else' (block_stmt | if_stmt))?
         expect(TokenType.IF_KW);
         analyseExpr();
+        int pointer = instructions.size();
         analyseBlock_stmt();
+
+        instructions.add(pointer, new Instruction(Operation.br_false, instructions.size()-pointer+1));
+
         if (check(TokenType.ELSE_KW)){
             if (check(TokenType.IF_KW)){
                 analyseIf_stmt();
@@ -307,10 +333,14 @@ public final class Analyser {
 
     private void analyseBlock_stmt() throws CompileError{
         expect(TokenType.L_BRACE);
+        BlockSymbol blockSymbol = new BlockSymbol();
+        this.symbolTable.add(blockSymbol);
+        top++;
         while (isFirst_vt_stmt()){
             analyseStmt();
         }
         expect(TokenType.R_BRACE);
+        this.symbolTable.remove(top);
     }
 
 
