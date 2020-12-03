@@ -41,7 +41,10 @@ public enum Operation {
 ,neg_f	
 ,itof	
 ,ftoi	
-,shrl	
+,shrl
+,set_lt
+,set_gt
+,br
 ,br_false
 ,br_true
 ,call
