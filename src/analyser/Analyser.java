@@ -1,10 +1,6 @@
 package analyser;
 
-import error.AnalyzeError;
-import error.CompileError;
-import error.ErrorCode;
-import error.ExpectedTokenError;
-import error.TokenizeError;
+import error.*;
 import instruction.Instruction;
 import instruction.Operation;
 import tokenizer.Token;
@@ -24,6 +20,7 @@ public final class Analyser {
     int funID = 0;
     int localParaCnt;
     BlockSymbol globalSymbol = new BlockSymbol();
+    String curFunc;//当前运行的函数名
 
 
     /** 当前偷看的 token */
@@ -126,6 +123,31 @@ public final class Analyser {
                 ||check(TokenType.IF_KW)||check(TokenType.WHILE_KW)||check(TokenType.RETURN_KW)
                 ||check(TokenType.SEMICOLON)||check(TokenType.L_BRACE);
     }
+
+    /**
+     * 寻找标识符，并使用loca或globa或arga命令将地址压入栈顶
+     * @param token
+     */
+    private void findIdent(Token token) throws CompileError{
+        String name = token.getValueString();
+        if(globalSymbol.getIdent(name)!=-1){
+            instructions.add(new Instruction(Operation.globa,globalSymbol.getIdent(name)));
+            return;
+        }
+        for(int i=0;i<symbolTable.size();i++){
+            if (symbolTable.get(i).getIdent(name)!=-1){
+                if (i==0)
+                    instructions.add(new Instruction(Operation.arga,symbolTable.get(i).getIdent(name)));
+                else
+                    instructions.add(new Instruction(Operation.loca,symbolTable.get(i).getIdent(name)));
+                return;
+            }
+        }
+        throw new AnalyzeError(ErrorCode.NotDeclared,token.getStartPos());
+    }
+
+
+
     private Type analyseTy() throws CompileError{
         Token token = expect(TokenType.IDENT);
         if (token.getValue().equals("void")){
@@ -177,19 +199,7 @@ public final class Analyser {
         }
     }
 
-    private void analyseExpr() throws CompileError{
-//        expr ->
-//                operator_expr
-//                        | negate_expr
-//                        | assign_expr
-//                        | as_expr
-//                        | call_expr
-//                        | literal_expr
-//                        | ident_expr
-//                        | group_expr
 
-        return;
-    }
     private void analyseDecl_stmt(boolean isLocal) throws CompileError{//是否为局部变量
         //decl_stmt -> let_decl_stmt | const_decl_stmt
 
@@ -283,7 +293,11 @@ public final class Analyser {
     private void analyseReturn_stmt() throws CompileError{
         //return_stmt -> 'return' expr? ';'
         expect(TokenType.RETURN_KW);
-//        analyseExpr();TODO:扩展C0需要返回值
+        if (funList.get(curFunc).returnType!=Type.VOID)
+            instructions.add(new Instruction(Operation.arga,0));
+        analyseExpr();
+        if (funList.get(curFunc).returnType!=Type.VOID)
+            instructions.add(new Instruction(Operation.store_64));
         expect(TokenType.SEMICOLON);
         instructions.add(new Instruction(Operation.ret));
     }
@@ -312,8 +326,9 @@ public final class Analyser {
 //               function_name  param_list     return_type  function_body
 
         localParaCnt = 0;//初始化局部变量个数
-
         int paraCnt=0;//参数个数
+        instructions = new ArrayList<>();//初始化指令集
+
         expect(TokenType.FN_KW);
         Token token = expect(TokenType.IDENT);
         expect(TokenType.L_PAREN);
@@ -322,6 +337,7 @@ public final class Analyser {
 
         symbolTable = new ArrayList<>();//新建符号表
         top = -1;
+        curFunc =token.getValueString();
 
         if (check(TokenType.CONST_KW)||check(TokenType.IDENT)){
             paraCnt = analyseFuncParaList();
@@ -335,13 +351,17 @@ public final class Analyser {
 
         analyseBlock_stmt();
 
-        funList.get(token.getValueString()).localParaCnt=localParaCnt;//设置函数局部变量个数
+        funList.get(token.getValueString()).localParaCnt=localParaCnt;//函数表中设置函数局部变量个数
+
+        instructions.add(new Instruction(Operation.ret));
+        //TODO:打印函数信息
 
 
     }
 
     private int analyseFuncParaList() throws CompileError{
         int cnt=1;
+        BlockSymbol.nextOffset=1;//因为0处是返回值
         symbolTable.add(new BlockSymbol());//symbolTable[0]为参数列表，应用arga命令处理！
         top=0;
         analyseFuncPara();
@@ -349,6 +369,7 @@ public final class Analyser {
             analyseFuncPara();
             cnt++;
         }
+        BlockSymbol.nextOffset = 0;//在存局部变量时将offset置为0
         return cnt;
     }
 
@@ -373,7 +394,112 @@ public final class Analyser {
             throw new Error("expect a main function");
 
     }
+    public boolean isb_op() throws CompileError{
+        return check(TokenType.PLUS)||check(TokenType.MINUS)||check(TokenType.MUL)||check(TokenType.DIV)
+                ||check(TokenType.EQ)||check(TokenType.ASSIGN)||check(TokenType.NEQ)
+                ||check(TokenType.LT)||check(TokenType.GT)||check(TokenType.LE)||check(TokenType.GE);
+
+    }
+    private void analyseExpr() throws CompileError{//需要保证调用完成时栈顶就是表达式值
+//        expr ->
+//                operator_expr
+//                        | negate_expr
+//                        | assign_expr
+//                        | as_expr
+//                        | call_expr
+//                        | literal_expr
+//                        | ident_expr
+//                        | group_expr
+//消除左递归后:
+//( IDENT(null|(call)|=expr) |-expr | (expr) |UINT |DOUBLE |STRING ) {b_op expr| as 'ty'}
+
+        if (check(TokenType.IDENT)){
+            if (check(TokenType.L_PAREN)){
+                analyseCall_expr();
+            }
+            else if (check(TokenType.ASSIGN)){
+                analyseAssign_expr();
+            }
+            else {
+                findIdent(expect(TokenType.IDENT));
+                instructions.add(new Instruction(Operation.load_64));
+            }
+        }
+        else if (check(TokenType.MINUS)){
+            expect(TokenType.MINUS);
+            analyseExpr();
+            //TODO:浮点数取反
+            instructions.add(new Instruction(Operation.neg_i));
+        }
+        else if (check(TokenType.L_PAREN)){
+            expect(TokenType.L_PAREN);
+            analyseExpr();
+            expect(TokenType.R_PAREN);
+        }
+        else if (check(TokenType.UINT_LITERAL)){
+            Token token = expect(TokenType.UINT_LITERAL);
+            instructions.add(new Instruction(Operation.push,(int)token.getValue()));
+        }
+        else if (check(TokenType.DOUBLE_LITERAL)){
+
+        }
+        else if (check(TokenType.STRING_LITERAL)){
+
+        }
+        else throw new Error("illegal expr!");
+
+        if (isb_op()){
+            analyseExpr();
+        }
+        else if (check(TokenType.AS_KW)){
+
+        }
+    }
+    private void analyseCall_expr() throws CompileError{
+        Token token = expect(TokenType.IDENT);
+        expect(TokenType.L_PAREN);
+
+        FuncInfo funcInfo = funList.get(token.getValueString());
+        if (funcInfo==null) throw new NotDeclaredError(ErrorCode.NotDeclared,token.getStartPos());
+
+        instructions.add(new Instruction(Operation.stackalloc,funcInfo.returnType==Type.VOID?0:1));
+        instructions.add(new Instruction(Operation.stackalloc,funcInfo.paraCnt));
+        instructions.add(new Instruction(Operation.push,0));//return value
+        //TODO:若为赋值语句，没处理报错
+        while (!check(TokenType.R_PAREN)){
+            analyseExpr();
+            if (!check(TokenType.R_PAREN)){
+                expect(TokenType.COMMA);
+                analyseExpr();
+            }
+        }
+        instructions.add(new Instruction(Operation.call,funcInfo.funID));
+
+        expect(TokenType.R_PAREN);
+    }
+    private void analyseAssign_expr() throws CompileError{
+        Token token = expect(TokenType.IDENT);
+        expect(TokenType.ASSIGN);
+        findIdent(token);
+        analyseExpr();
+        instructions.add(new Instruction(Operation.store_64));
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
 }
+
+
 
 
 

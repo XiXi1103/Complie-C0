@@ -7,11 +7,11 @@ import util.Pos;
 import java.util.HashMap;
 
 public class BlockSymbol {
-    private int nextOffset = 0;
+    public static int nextOffset = 0;
     private HashMap<String, SymbolEntry> blockSymbolTable = new HashMap<>();
 
     public int getNextVariableOffset() {
-        return this.nextOffset++;
+        return nextOffset++;
     }
     public void addSymbol(String name, boolean isInitialized, boolean isConstant,Type type, Pos curPos) throws AnalyzeError {
         if (this.blockSymbolTable.get(name) != null) {
@@ -43,6 +43,17 @@ public class BlockSymbol {
         } else {
             return entry.isConstant();
         }
+    }
+
+    /**
+     * 查找符号表中是否有Ident,且不抛异常
+     * @param name
+     * @return
+     */
+    public int getIdent(String name){
+        var entry = this.blockSymbolTable.get(name);
+        if (entry==null) return -1;
+        return entry.getStackOffset();
     }
 
 //    /**
