@@ -48,12 +48,21 @@ public class BlockSymbol {
     /**
      * 查找符号表中是否有Ident,且不抛异常
      * @param name
-     * @return
+     * @return 标识符的栈偏移
      */
     public int getIdent(String name){
         var entry = this.blockSymbolTable.get(name);
         if (entry==null) return -1;
         return entry.getStackOffset();
+    }
+
+    public Type getType(String name){
+        var entry = this.blockSymbolTable.get(name);
+        return entry.type;
+    }
+    public void setType(String name,Type type){
+        var entry = this.blockSymbolTable.get(name);
+        entry.type = type;
     }
 
 //    /**
