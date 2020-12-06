@@ -411,8 +411,27 @@ public final class Analyser {
 
     static HashMap<TokenType,Integer> priorityMap = new HashMap<>();//TODO
     static {
-        priorityMap.put(TokenType.ASSIGN,0);
+        priorityMap.put(TokenType.ASSIGN,1);
+        priorityMap.put(TokenType.LE,2);
+        priorityMap.put(TokenType.LT,2);
+        priorityMap.put(TokenType.GE,2);
+        priorityMap.put(TokenType.GT,2);
+        priorityMap.put(TokenType.EQ,2);
+        priorityMap.put(TokenType.NEQ,2);
+        priorityMap.put(TokenType.PLUS,3);
+        priorityMap.put(TokenType.MINUS,3);
+        priorityMap.put(TokenType.MUL,4);
+        priorityMap.put(TokenType.DIV,4);
     }
+
+    /**
+     * 标识上一层是否为取反操作，若是，则跳过b_op and AS
+     */
+    boolean isNEG = false;
+    /**
+     * 上一个b_op的优先级
+     */
+    int lastPriority = 0;
     private Type analyseExpr() throws CompileError{//需要保证调用完成时栈顶就是表达式值
 //        expr ->
 //                operator_expr
@@ -443,9 +462,12 @@ public final class Analyser {
         }
         else if (check(TokenType.MINUS)){
             Token token = expect(TokenType.MINUS);
+            boolean tmp = isNEG;//模拟os保存寄存器
+            isNEG = true;
             returnType = analyseExpr();
+            isNEG = tmp;
             if (returnType == Type.DOUBLE)
-                instructions.add(new Instruction(Operation.neg_i));
+                instructions.add(new Instruction(Operation.neg_f));
             else if (returnType == Type.INT)
                 instructions.add(new Instruction(Operation.neg_i));
             else
@@ -470,7 +492,7 @@ public final class Analyser {
             returnType = Type.VOID;
         }
         else throw new Error("illegal expr!");
-        while (true){
+        while (!isNEG){
             if (check(TokenType.AS_KW)){
                 expect(TokenType.AS_KW);
                 Type type = analyseTy();
@@ -480,7 +502,123 @@ public final class Analyser {
                 else throw new Error("非法的类型转换(将void类型转换为其他类型)");
             }
             else if (isb_op()){
-                analyseExpr();
+                Token token = peek();
+                int tmp = lastPriority;
+                if (lastPriority>=priorityMap.get(token.getTokenType()))
+                    break;
+                token = next();
+                lastPriority = priorityMap.get(token.getTokenType());
+                Type newType = analyseExpr();
+                switch (token.getTokenType()){
+                    case PLUS -> {
+                        if (returnType ==Type.INT&&newType ==Type.INT){
+                            instructions.add(new Instruction(Operation.add_i));
+                            returnType=Type.INT;
+                        }
+
+                        else if (returnType ==Type.DOUBLE&&newType ==Type.DOUBLE){
+                            instructions.add(new Instruction(Operation.add_f));
+                            returnType=Type.DOUBLE;
+                        }
+                    }
+                    case MINUS -> {
+                        if (returnType ==Type.INT&&newType ==Type.INT) {
+                            instructions.add(new Instruction(Operation.sub_i));
+                            returnType=Type.INT;
+                        }
+                        else if (returnType ==Type.DOUBLE&&newType ==Type.DOUBLE){
+                            instructions.add(new Instruction(Operation.sub_f));
+                            returnType=Type.DOUBLE;
+                        }
+                    }
+                    case MUL -> {
+                        if (returnType ==Type.INT&&newType ==Type.INT) {
+                            instructions.add(new Instruction(Operation.mul_i));
+                            returnType=Type.INT;
+                        }
+                        else if (returnType ==Type.DOUBLE&&newType ==Type.DOUBLE){
+                            instructions.add(new Instruction(Operation.mul_f));
+                            returnType=Type.DOUBLE;
+                        }
+                    }
+                    case DIV -> {//TODO: what's div_u??
+                        if (returnType ==Type.INT&&newType ==Type.INT) {
+                            instructions.add(new Instruction(Operation.div_i));
+                            returnType=Type.INT;
+                        }
+                        else if (returnType ==Type.DOUBLE&&newType ==Type.DOUBLE){
+                            instructions.add(new Instruction(Operation.div_f));
+                            returnType=Type.DOUBLE;
+                        }
+                    }
+                    case EQ -> {
+                        instructions.add(new Instruction(Operation.xor));
+                        instructions.add(new Instruction(Operation.not));
+                        returnType=Type.INT;
+                    }
+                    case NEQ -> {
+                        instructions.add(new Instruction(Operation.xor));
+                        returnType=Type.INT;
+                    }
+                    case LT ->{
+                        if (newType==Type.INT&&returnType==Type.INT){
+                            instructions.add(new Instruction(Operation.cmp_i));
+                            instructions.add(new Instruction(Operation.set_lt));
+                        }
+                        else if (newType==Type.DOUBLE&&returnType==Type.DOUBLE){
+                            instructions.add(new Instruction(Operation.cmp_f));
+                            instructions.add(new Instruction(Operation.set_lt));
+                        }
+                        returnType=Type.INT;
+                    }
+                    case GT ->{
+                        if (newType==Type.INT&&returnType==Type.INT){
+                            instructions.add(new Instruction(Operation.cmp_i));
+                            instructions.add(new Instruction(Operation.set_gt));
+                        }
+                        else if (newType==Type.DOUBLE&&returnType==Type.DOUBLE){
+                            instructions.add(new Instruction(Operation.cmp_f));
+                            instructions.add(new Instruction(Operation.set_gt));
+                        }
+                        returnType=Type.INT;
+                    }
+                    case GE -> {
+                        if (newType==Type.INT&&returnType==Type.INT){
+                            instructions.add(new Instruction(Operation.cmp_i));//是0则跳出，不是0用set_gt
+                            instructions.add(new Instruction(Operation.br_true,4));
+                            instructions.add(new Instruction(Operation.not));
+                            instructions.add(new Instruction(Operation.br,2));
+                            instructions.add(new Instruction(Operation.set_gt));
+                        }
+                        else if (newType==Type.DOUBLE&&returnType==Type.DOUBLE){
+                            instructions.add(new Instruction(Operation.cmp_f));
+                            instructions.add(new Instruction(Operation.br_true,4));
+                            instructions.add(new Instruction(Operation.not));
+                            instructions.add(new Instruction(Operation.br,2));
+                            instructions.add(new Instruction(Operation.set_gt));
+                        }
+                        returnType=Type.INT;
+                    }
+                    case LE -> {
+                        if (newType==Type.INT&&returnType==Type.INT){
+                            instructions.add(new Instruction(Operation.cmp_i));//是0则跳出，不是0用set_lt
+                            instructions.add(new Instruction(Operation.br_true,4));
+                            instructions.add(new Instruction(Operation.not));
+                            instructions.add(new Instruction(Operation.br,2));
+                            instructions.add(new Instruction(Operation.set_lt));
+                        }
+                        else if (newType==Type.DOUBLE&&returnType==Type.DOUBLE){
+                            instructions.add(new Instruction(Operation.cmp_f));
+                            instructions.add(new Instruction(Operation.br_true,4));
+                            instructions.add(new Instruction(Operation.not));
+                            instructions.add(new Instruction(Operation.br,2));
+                            instructions.add(new Instruction(Operation.set_lt));
+                        }
+                        returnType=Type.INT;
+                    }
+
+                }
+                lastPriority = tmp;
             }
             else break;
         }
